@@ -1,0 +1,235 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{left=25mm, right=25mm, bottom=40mm}
+
+\title{CS330: Getting Started Guide for GemOS}
+\author{}
+\date{}
+
+%\titleformat{\section}[block]{\color{blue}\Large\bfseries\filcenter}{}{1em}{}[{\titlerule[0.8pt]}]
+%\titleformat{\subsection}[hang]{\bfseries}{}{1em}{}
+\begin{document}
+\maketitle
+
+
+\section*{Introduction}
+\texttt{gemOS} is a teaching operating system, will be developed gradually during the course. 
+As part of the assignments, you are required to design and implement several features in \texttt{gemOS}.
+%
+Typically, operating systems execute on hardware (bare metal or virtual). 
+For this course, we will use Gem5 architectural simulator (\url{http://gem5.org/Main_Page}).
+%
+An architectural simulator simulates the hardware in software. 
+%
+In other words, all the hardware functionalities
+and communications are implemented in software using some programming language. 
+%
+For example, Gem5 simulator implements architectural elements for different architectures like
+ARM, X86, MIPS etc.
+%
+Advantages of using software simulators for OS development are,
+\begin{itemize}
+\item Internal hardware state and operations at different components (e.g., decoder, cache etc.) can be
+profiled to better understand the hardware-software interfacing.
+\item Hardware can be modified for several purposes---make it simpler, understand implications of 
+hardware changes on software design etc.
+\item Bugs during OS development can be better understood by debugging both hardware code and the OS code.     
+\end{itemize} 
+%
+The getting started guide helps you to setup Gem5 and execute \texttt{gemOS} on it.
+\section*{Preparing Gem5 simulator}
+\subsection*{System pre-requisites}
+\begin{itemize}
+    \item Git
+    \item gcc 4.8+
+    \item python 2.7+
+    \item SCons
+    \item protobuf 2.1+
+\end{itemize}
+\begin{flushleft}
+On Ubuntu install the packages by executing the following command. 
+
+\vspace{0.25cm}
+\noindent
+\texttt{\$ sudo apt-get install build-essential git m4 scons zlib1g zlib1g-dev libprotobuf-dev protobuf-compiler libprotoc-dev  libgoogle-perftools-dev python-dev python automake}
+\end{flushleft} 
+\vspace{5mm}
+\subsection*{Gem5 installation} 
+Clone the gem5 repository from \url{https://gem5.googlesource.com/public/gem5}.
+
+\vspace{0.25cm}
+\noindent
+\texttt{\$ git clone https://gem5.googlesource.com/public/gem5}
+
+\vspace{0.25cm}
+\noindent
+Change the current directory to \texttt{gem5} and build it with scons:
+
+\vspace{0.25cm}
+\noindent
+\texttt{\$ cd gem5 \\
+ \$ scons build/X86/gem5.opt -j9}
+
+\vspace{0.25cm}
+\noindent
+In place of 9 in [-j9], you can assign a number equal to available processors in your system plus one. 
+For example, if your system have 4 cores, then substitute -j9 with -j5. 
+For first time it will take around 10 to 30 minutes depending on your system configuration. 
+After a successful Gem5 is build, test it using the following command,
+
+
+\vspace{0.25cm}
+\noindent
+\texttt{\$ build/X86/gem5.opt configs/example/se.py --cmd=tests/test-progs/hello/bin/x86/linux/hello}
+
+\vspace{0.25cm}
+\noindent
+The output should be as follows,
+\begin{verbatim}
+ gem5 Simulator System.  http://gem5.org
+ gem5 is copyrighted software; use the --copyright option for details.
+ gem5 compiled Aug  4 2018 11:00:44
+ gem5 started Aug  4 2018 17:15:06
+ gem5 executing on BM1AF-BP1AF-BM6AF, pid 8965
+ command line: build/X86/gem5.opt configs/example/se.py \
+               --cmd=tests/test-progs/hello/bin/x86/linux/hello
+ /home/user/workspace/gem5/configs/common/CacheConfig.py:50: SyntaxWarning: import * only \ 
+               allowed at module level def config_cache(options, system):
+ Global frequency set at 1000000000000 ticks per second
+ warn: DRAM device capacity (8192 Mbytes) does not match the address range assigned (512 Mbytes)
+ 0: system.remote_gdb: listening for remote gdb on port 7000
+ **** REAL SIMULATION ****
+ info: Entering event queue @ 0. Starting simulation...
+ Hello world!
+ Exiting @ tick 5941500 because exiting with last active thread context 
+\end{verbatim}
+
+
+\subsection*{Booting GemOS using Gem5} 
+Gem5 execute in two modes---system call emulation (SE) mode and full system (FS) simulation mode.
+%
+The example shown in the previous section, was a SE mode simulation of Gem5 to study an application.
+%
+As we want to execute an OS, Gem5 should be executed in FS mode. 
+%
+There are some setup steps before we can execute \texttt{gemOS} using Gem5 FS mode.
+%
+To run OS in full-system mode, where we are required to simulate the hardware in detail, 
+we need to provide the following files,
+\begin{itemize}
+    \item \texttt{gemOS.kernel}: OS binary built from the \texttt{gemOS} source. 
+    \item \texttt{gemOS.img}: root disk image
+    \item \texttt{swap.img}: swap disk image
+\end{itemize}
+
+Gem5 is required to be properly configured to execute the \texttt{gemOS} kernel. 
+The configuration requires changing
+some existing configuration files (in gem5 directory) as follows,
+\begin{itemize}
+   \item Edit the \texttt{configs/common/FSConfig.py} file to modify the \texttt{makeX86System} function
+         where the value of \texttt{disk2.childImage} is modified to \texttt{(disk('swap.img'))}.
+   \item Edit the \texttt{configs/common/FSConfig.py} file to modify the \texttt{makeLinuxX86System} function
+         where the value of \texttt{self.kernel} is modified to  \texttt{binary('gemOS.kernel')}.
+   \item Edit the \texttt{configs/common/Benchmarks.py} file to update it as follows, 
+         \begin{verbatim}
+             elif buildEnv['TARGET_ISA'] == 'x86':
+                   return env.get('LINUX_IMAGE', disk('gemOS.img'))
+         \end{verbatim}
+\end{itemize}
+\noindent
+Create a directory named \texttt{gemos} in \texttt{gem5} directory and populate it as follows,
+
+\vspace{0.25cm}
+\noindent
+\texttt{/home/user/gem5\$ mkdir gemos} \\
+\texttt{/home/user/gem5\$ cd gemos} \\
+\texttt{/home/user/gem5/gemos\$ mkdir disks; mkdir binaries} \\
+\texttt{/home/user/gem5/gemos\$ dd if=/dev/zero of=disks/gemOS.img bs=1M count=128} \\
+\texttt{/home/user/gem5/gemos\$ dd if=/dev/zero of=disks/swap.img bs=1M count=32} \\
+
+
+Build \texttt{gemOS} source (will be provided during assignments) by 
+executing \texttt{make} and copy the binary to \texttt{gemos/binaries} directory.
+This step is necessary every time you build the OS and want to test it.
+%
+For the time being, you can download \texttt{gemOS.kernel} from \url{https://www.cse.iitk.ac.in/users/deba/cs330/resources/gemOS.kernel}.
+%
+We need to set the \texttt{M5\_PATH} environment variable to the \texttt{gemos} directory path as follows,
+
+
+\vspace{0.25cm}
+\noindent
+\texttt{/home/user/gem5\$ export M5\_PATH=/home/user/gem5/gemos}
+%Linux binary and disk image can be downloaded from \url{http://www.m5sim.org/dist/current/x86/x86-system.tar.bz2}
+%You need to create swap disk image by yourself. \\
+%\fcolorbox{green}{white!40}{\parbox{\textwidth}{\textbf{\$: wget \url{http://www.m5sim.org/dist/current/x86/x86-system.tar.bz2} \\
+%\$: tar -xf x86-system.tar.bz2 }}} \\
+%
+% To simulate the OS specify the binaries and disks to gem5 by  setting environment variable M5\_PATH and point to the binary and disk file. \\
+% 
+% To set up environment variable:
+% Make new directory x86-system and move these folders(disks, binaries extracted previously) to x86-system and export environment variable M5\_PATH with value as the path to x86-system directory. \\
+% \fcolorbox{green}{white!40}{\parbox{\textwidth}{\textbf{\$: mkdir x86-system \\
+% \$: mv disks x86-system/ \\
+% \$: mv binaries x86-system/ \\
+% \$: pwd \\
+% /home/user/workspace/gem5 \\
+% \$: export M5\_PATH=/home/user/workspace/gem5/x86-system
+% }}}\\
+% \\
+% 
+% To Specify binary and disks name Modify gem5/configs/common/FSConfig.py as: \\
+% on line 681 replace x86\_64-vmlinux-2.6.22.9 with your os binary name specified in x86-system/binaries/ directory \\
+% on line 563: replace "linux-bigswap2.img" with the OS disk image file name specified in x6-system/disks/ directory \\
+% modify gem5/configs/common/Benchmarks.py as: \\
+% on line 62: replace 'x86-root.img' with your os disk image file name specified in x6-system/disks/ directory\\
+ 
+\vspace{0.25cm}
+\noindent
+Now, we are ready to boot GemOS.
+
+\vspace{0.25cm}
+\noindent
+\texttt{gem5\$ build/X86/gem5.opt configs/example/fs.py}
+
+\vspace{0.25cm}
+\noindent
+Gem5 output will look as follows,
+\begin{verbatim}
+gem5 Simulator System.  http://gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 compiled Aug 10 2018 20:24:30
+gem5 started Aug 15 2018 18:01:10
+gem5 executing on cse-BM1AF-BP1AF-BM6AF, pid 11898
+command line: ./build/X86/gem5.debug configs/example/fs.py
+
+Global frequency set at 1000000000000 ticks per second
+warn: DRAM device capacity (8192 Mbytes) does not match the address range assigned (512 Mbytes)
+info: kernel located at: /home/user/gem5/gemos/binaries/gemOS.kernel
+Listening for com_1 connection on port 3456
+      0: rtc: Real-time clock set to Sun Jan  1 00:00:00 2012
+0: system.remote_gdb.listener: listening for remote gdb #0 on port 7000
+warn: Reading current count from inactive timer.
+**** REAL SIMULATION ****
+info: Entering event queue @ 0.  Starting simulation...
+warn: Don't know what interrupt to clear for console.
+\end{verbatim} 
+
+\noindent
+Execute the following command in another terminal window to access the \texttt{gemOS} console 
+
+\vspace{0.25cm}
+\noindent
+\texttt{/home/user\$ telnet localhost 3456}
+
+
+\vspace{0.25cm}
+\noindent
+At this point, you should be able to see the \texttt{gemOS} shell. Type help to see the available commands.
+\end{document}
